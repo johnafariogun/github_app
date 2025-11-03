@@ -10,10 +10,35 @@ from utils.utils import fetch_issues
 import os
 
 
+
+import httpx
+
 class GitHubIssuesAgent:
     def __init__(self):
         # No external client required for simple GitHub REST fetches
         self.conversations = {}
+
+    async def send_to_webhook(self, webhook_url, token, issues_result, authentication=None):
+        """
+        Send the issues_result to the webhook_url using the provided token (Bearer by default).
+        authentication: dict, may contain schemes (list of auth schemes)
+        """
+        headers = {"Content-Type": "application/json"}
+        if token:
+            # Default to Bearer if not specified
+            scheme = "Bearer"
+            if authentication and isinstance(authentication, dict):
+                schemes = authentication.get("schemes")
+                if schemes and isinstance(schemes, list) and len(schemes) > 0:
+                    scheme = schemes[0]
+            headers["Authorization"] = f"{scheme} {token}"
+        async with httpx.AsyncClient() as client:
+            try:
+                resp = await client.post(webhook_url, json=issues_result, headers=headers, timeout=10.0)
+                resp.raise_for_status()
+            except Exception as e:
+                # Log or handle webhook delivery failure as needed
+                pass
 
     async def process_messages(
         self,
@@ -123,6 +148,18 @@ class GitHubIssuesAgent:
                     ),
                     artifacts=[],
                     history=messages + [response_message]
+                )
+
+            # If pushNotificationConfig is present, send issues to webhook
+            webhook_cfg = None
+            if config and hasattr(config, "pushNotificationConfig") and config.pushNotificationConfig:
+                webhook_cfg = config.pushNotificationConfig
+            if webhook_cfg and webhook_cfg.url:
+                await self.send_to_webhook(
+                    webhook_url=webhook_cfg.url,
+                    token=webhook_cfg.token,
+                    issues_result=issues_result,
+                    authentication=getattr(webhook_cfg, "authentication", None)
                 )
 
             # Build a short textual summary
