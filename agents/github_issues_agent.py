@@ -45,7 +45,7 @@ class GitHubIssuesAgent:
                 return True
             except Exception as e:
                 # Log or handle webhook delivery failure as needed
-                logger.exception("Failed to deliver webhook to %s: %s", webhook_url, e)
+                logger.exception("Failed to deliver webhook to %s: %s \n issues_result: %s \n headers %s", webhook_url, e, issues_result, headers)
                 return False
 
     async def process_messages(
