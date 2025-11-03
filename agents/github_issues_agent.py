@@ -27,6 +27,29 @@ class GitHubIssuesAgent:
         Send the issues_result to the webhook_url using the provided token (Bearer by default).
         authentication: dict, may contain schemes (list of auth schemes)
         """
+        # Format issues into a TaskResult for the webhook
+        message = A2AMessage(
+            role="agent",
+            parts=[MessagePart(kind="text", text=f"Found {issues_result.get('count', 0)} issues in {issues_result.get('owner', '')}/{issues_result.get('repo', '')}")],
+            taskId=str(uuid4())  # Generate a new task ID for the webhook payload
+        )
+        
+        webhook_payload = TaskResult(
+            id=str(uuid4()),  # Generate a unique ID for this webhook delivery
+            contextId=str(uuid4()),  # Generate a unique context ID
+            status=TaskStatus(
+                state="completed",
+                message=message
+            ),
+            artifacts=[
+                Artifact(
+                    name="issues_data",
+                    parts=[MessagePart(kind="data", data=issues_result)]
+                )
+            ],
+            history=[]  # No history needed for webhook
+        ).model_dump()  # Convert to dict for JSON serialization
+
         headers = {"Content-Type": "application/json"}
         if token:
             # Default to Bearer if not specified
@@ -36,16 +59,17 @@ class GitHubIssuesAgent:
                 if schemes and isinstance(schemes, list) and len(schemes) > 0:
                     scheme = schemes[0]
             headers["Authorization"] = f"{scheme} {token}"
+
         logger.info("Sending webhook to %s", webhook_url)
         async with httpx.AsyncClient() as client:
             try:
-                resp = await client.post(webhook_url, json=issues_result, headers=headers, timeout=60.0)
+                resp = await client.post(webhook_url, json=webhook_payload, headers=headers, timeout=60.0)
                 resp.raise_for_status()
                 logger.info("Webhook delivered successfully to %s (status=%s)", webhook_url, resp.status_code)
                 return True
             except Exception as e:
                 # Log or handle webhook delivery failure as needed
-                logger.exception("Failed to deliver webhook to %s: %s \n issues_result: %s \n headers %s", webhook_url, e, issues_result, headers)
+                logger.exception("Failed to deliver webhook to %s: %s \n webhook_payload: %s \n headers %s", webhook_url, e, webhook_payload, headers)
                 return False
 
     async def process_messages(
