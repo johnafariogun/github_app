@@ -3,11 +3,21 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 import os
+import logging
+import sys
 
 from models.a2a import JSONRPCRequest, JSONRPCResponse
 from agents.github_issues_agent import GitHubIssuesAgent
 
 load_dotenv()
+
+# Configure root logger to stdout so logs appear in any deployment logs
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    stream=sys.stdout,
+)
+logger = logging.getLogger(__name__)
 
 # Initialize GitHub issues agent
 github_agent = None
@@ -19,12 +29,14 @@ async def lifespan(app: FastAPI):
     global github_agent
 
     # Initialize GitHub issues agent
+    logger.info("Initializing GitHubIssuesAgent")
     github_agent = GitHubIssuesAgent()
     
     yield
     
     # Cleanup github_agent if it exposes cleanup
     if github_agent and hasattr(github_agent, "cleanup"):
+        logger.info("Cleaning up GitHubIssuesAgent")
         await github_agent.cleanup()
 
 

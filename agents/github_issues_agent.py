@@ -12,6 +12,10 @@ import os
 
 
 import httpx
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class GitHubIssuesAgent:
     def __init__(self):
@@ -32,13 +36,17 @@ class GitHubIssuesAgent:
                 if schemes and isinstance(schemes, list) and len(schemes) > 0:
                     scheme = schemes[0]
             headers["Authorization"] = f"{scheme} {token}"
+        logger.info("Sending webhook to %s", webhook_url)
         async with httpx.AsyncClient() as client:
             try:
                 resp = await client.post(webhook_url, json=issues_result, headers=headers, timeout=10.0)
                 resp.raise_for_status()
+                logger.info("Webhook delivered successfully to %s (status=%s)", webhook_url, resp.status_code)
+                return True
             except Exception as e:
                 # Log or handle webhook delivery failure as needed
-                pass
+                logger.exception("Failed to deliver webhook to %s: %s", webhook_url, e)
+                return False
 
     async def process_messages(
         self,
