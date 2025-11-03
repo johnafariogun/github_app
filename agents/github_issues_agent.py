@@ -39,7 +39,7 @@ class GitHubIssuesAgent:
         logger.info("Sending webhook to %s", webhook_url)
         async with httpx.AsyncClient() as client:
             try:
-                resp = await client.post(webhook_url, json=issues_result, headers=headers, timeout=10.0)
+                resp = await client.post(webhook_url, json=issues_result, headers=headers, timeout=60.0)
                 resp.raise_for_status()
                 logger.info("Webhook delivered successfully to %s (status=%s)", webhook_url, resp.status_code)
                 return True
